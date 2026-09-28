@@ -92,7 +92,6 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private data class PlayerUiSheetSliceV2(
@@ -222,16 +221,8 @@ fun UnifiedPlayerSheetV2(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
 
-    val offsetAnimatable = remember { Animatable(0f) }
     val screenWidthPx = remember(configuration, density) {
         with(density) { configuration.screenWidthDp.dp.toPx() }
-    }
-    val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
-    val swipeDismissProgress by remember(dismissThresholdPx) {
-        derivedStateOf {
-            if (dismissThresholdPx == 0f) 0f
-            else (abs(offsetAnimatable.value) / dismissThresholdPx).coerceIn(0f, 1f)
-        }
     }
 
     val screenHeightPx = remember(configuration, density) {
@@ -402,7 +393,7 @@ fun UnifiedPlayerSheetV2(
         isNavBarHidden = isNavBarHidden,
         isPlaying = infrequentPlayerState.isPlaying,
         hasCurrentSong = infrequentPlayerState.currentSong != null,
-        swipeDismissProgress = swipeDismissProgress
+        swipeDismissProgress = 0f
     )
     val currentBottomPadding = sheetVisualState.currentBottomPadding
     val baseBottomPadding = sheetVisualState.baseBottomPadding
@@ -466,11 +457,8 @@ fun UnifiedPlayerSheetV2(
 
     val hapticFeedback = LocalHapticFeedback.current
     val miniPlayerSwipeGestureHandler = rememberMiniPlayerSwipeGestureHandler(
-        scope = scope,
         density = density,
         hapticFeedback = hapticFeedback,
-        offsetAnimatable = offsetAnimatable,
-        screenWidthPx = screenWidthPx,
         onSwipeToNext = { playerViewModel.nextSong() },
         onSwipeToPrevious = { playerViewModel.previousSong() }
     )
@@ -652,7 +640,6 @@ fun UnifiedPlayerSheetV2(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                translationX = offsetAnimatable.value
                                 scaleX = miniAppearScale
                                 scaleY = visualOvershootScaleY.value * miniAppearScale
                                 alpha = miniReadyAlpha
