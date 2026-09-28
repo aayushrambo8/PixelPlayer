@@ -23,27 +23,26 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
 
-private enum class MiniDismissDragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
+private enum class MiniPlayerSwipeDragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 /**
- * Keeps mini-player dismiss gesture behavior isolated from the sheet host.
- * Logic is unchanged; this only centralizes gesture transitions and animation dispatch.
+ * Keeps mini-player track-swipe behavior isolated from the sheet host.
  */
-internal class MiniPlayerDismissGestureHandler(
+internal class MiniPlayerSwipeGestureHandler(
     private val scope: CoroutineScope,
     private val density: Density,
     private val hapticFeedback: HapticFeedback,
     private val offsetAnimatable: Animatable<Float, AnimationVector1D>,
     private val screenWidthPx: Float,
-    private val onDismissPlaylistAndShowUndo: () -> Unit,
-    private val onDismissStarted: () -> Unit = {}
+    private val onSwipeToNext: () -> Unit,
+    private val onSwipeToPrevious: () -> Unit
 ) {
-    private var dragPhase: MiniDismissDragPhase = MiniDismissDragPhase.IDLE
+    private var dragPhase: MiniPlayerSwipeDragPhase = MiniPlayerSwipeDragPhase.IDLE
     private var accumulatedDragX: Float = 0f
     private var offsetJob: Job? = null
 
     fun onDragStart() {
-        dragPhase = MiniDismissDragPhase.TENSION
+        dragPhase = MiniPlayerSwipeDragPhase.TENSION
         accumulatedDragX = 0f
         offsetJob?.cancel()
         offsetJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -55,7 +54,7 @@ internal class MiniPlayerDismissGestureHandler(
         accumulatedDragX += dragAmount
 
         when (dragPhase) {
-            MiniDismissDragPhase.TENSION -> {
+            MiniPlayerSwipeDragPhase.TENSION -> {
                 val snapThresholdPx = 100f * density.density
                 if (abs(accumulatedDragX) < snapThresholdPx) {
                     val maxTensionOffsetPx = 30f * density.density
@@ -66,11 +65,11 @@ internal class MiniPlayerDismissGestureHandler(
                         offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign)
                     }
                 } else {
-                    dragPhase = MiniDismissDragPhase.SNAPPING
+                    dragPhase = MiniPlayerSwipeDragPhase.SNAPPING
                 }
             }
 
-            MiniDismissDragPhase.SNAPPING -> {
+            MiniPlayerSwipeDragPhase.SNAPPING -> {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                 offsetJob?.cancel()
                 offsetJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -82,10 +81,10 @@ internal class MiniPlayerDismissGestureHandler(
                         )
                     )
                 }
-                dragPhase = MiniDismissDragPhase.FREE_DRAG
+                dragPhase = MiniPlayerSwipeDragPhase.FREE_DRAG
             }
 
-            MiniDismissDragPhase.FREE_DRAG -> {
+            MiniPlayerSwipeDragPhase.FREE_DRAG -> {
                 offsetJob?.cancel()
                 offsetJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     offsetAnimatable.animateTo(
@@ -98,26 +97,26 @@ internal class MiniPlayerDismissGestureHandler(
                 }
             }
 
-            MiniDismissDragPhase.IDLE -> Unit
+            MiniPlayerSwipeDragPhase.IDLE -> Unit
         }
     }
 
     fun onDragEnd() {
-        dragPhase = MiniDismissDragPhase.IDLE
+        dragPhase = MiniPlayerSwipeDragPhase.IDLE
         offsetJob?.cancel()
-        val dismissThreshold = screenWidthPx * 0.4f
-        if (abs(accumulatedDragX) > dismissThreshold) {
-            onDismissStarted()
-            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
+        val trackSwipeThreshold = screenWidthPx * 0.4f
+        if (abs(accumulatedDragX) > trackSwipeThreshold) {
+            val swipedLeft = accumulatedDragX < 0
+            val targetOffset = if (swipedLeft) -screenWidthPx else screenWidthPx
             offsetJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 offsetAnimatable.animateTo(
-                    targetValue = targetDismissOffset,
+                    targetValue = targetOffset,
                     animationSpec = tween(
                         durationMillis = 200,
                         easing = FastOutSlowInEasing
                     )
                 )
-                onDismissPlaylistAndShowUndo()
+                if (swipedLeft) onSwipeToNext() else onSwipeToPrevious()
                 offsetAnimatable.snapTo(0f)
             }
         } else {
@@ -135,33 +134,33 @@ internal class MiniPlayerDismissGestureHandler(
 }
 
 @Composable
-internal fun rememberMiniPlayerDismissGestureHandler(
+internal fun rememberMiniPlayerSwipeGestureHandler(
     scope: CoroutineScope,
     density: Density,
     hapticFeedback: HapticFeedback,
     offsetAnimatable: Animatable<Float, AnimationVector1D>,
     screenWidthPx: Float,
-    onDismissPlaylistAndShowUndo: () -> Unit,
-    onDismissStarted: () -> Unit
-): MiniPlayerDismissGestureHandler {
-    val onDismissPlaylistAndShowUndoState = rememberUpdatedState(onDismissPlaylistAndShowUndo)
-    val onDismissStartedState = rememberUpdatedState(onDismissStarted)
+    onSwipeToNext: () -> Unit,
+    onSwipeToPrevious: () -> Unit
+): MiniPlayerSwipeGestureHandler {
+    val onSwipeToNextState = rememberUpdatedState(onSwipeToNext)
+    val onSwipeToPreviousState = rememberUpdatedState(onSwipeToPrevious)
     return remember(scope, density, hapticFeedback, offsetAnimatable, screenWidthPx) {
-        MiniPlayerDismissGestureHandler(
+        MiniPlayerSwipeGestureHandler(
             scope = scope,
             density = density,
             hapticFeedback = hapticFeedback,
             offsetAnimatable = offsetAnimatable,
             screenWidthPx = screenWidthPx,
-            onDismissPlaylistAndShowUndo = { onDismissPlaylistAndShowUndoState.value() },
-            onDismissStarted = { onDismissStartedState.value() }
+            onSwipeToNext = { onSwipeToNextState.value() },
+            onSwipeToPrevious = { onSwipeToPreviousState.value() }
         )
     }
 }
 
-internal fun Modifier.miniPlayerDismissHorizontalGesture(
+internal fun Modifier.miniPlayerSwipeHorizontalGesture(
     enabled: Boolean,
-    handler: MiniPlayerDismissGestureHandler
+    handler: MiniPlayerSwipeGestureHandler
 ): Modifier {
     if (!enabled) return this
     return this.pointerInput(enabled, handler) {

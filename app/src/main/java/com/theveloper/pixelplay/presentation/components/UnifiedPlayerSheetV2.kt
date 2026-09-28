@@ -69,12 +69,12 @@ import com.theveloper.pixelplay.presentation.components.scoped.PlayerArtistNavig
 import com.theveloper.pixelplay.presentation.components.scoped.PlayerSheetPredictiveBackHandler
 import com.theveloper.pixelplay.presentation.components.scoped.QueueSheetRuntimeEffects
 import com.theveloper.pixelplay.presentation.components.scoped.SheetMotionController
-import com.theveloper.pixelplay.presentation.components.scoped.miniPlayerDismissHorizontalGesture
+import com.theveloper.pixelplay.presentation.components.scoped.miniPlayerSwipeHorizontalGesture
 import com.theveloper.pixelplay.presentation.components.scoped.playerSheetVerticalDragGesture
 import com.theveloper.pixelplay.presentation.components.scoped.rememberFullPlayerCompositionPolicy
 import com.theveloper.pixelplay.presentation.components.scoped.rememberCastSheetState
 import com.theveloper.pixelplay.presentation.components.scoped.rememberFullPlayerVisualState
-import com.theveloper.pixelplay.presentation.components.scoped.rememberMiniPlayerDismissGestureHandler
+import com.theveloper.pixelplay.presentation.components.scoped.rememberMiniPlayerSwipeGestureHandler
 import com.theveloper.pixelplay.presentation.components.scoped.rememberPrewarmFullPlayer
 import com.theveloper.pixelplay.presentation.components.scoped.rememberQueueSheetState
 import com.theveloper.pixelplay.presentation.components.scoped.rememberSheetActionHandlers
@@ -465,14 +465,14 @@ fun UnifiedPlayerSheetV2(
     )
 
     val hapticFeedback = LocalHapticFeedback.current
-    val miniDismissGestureHandler = rememberMiniPlayerDismissGestureHandler(
+    val miniPlayerSwipeGestureHandler = rememberMiniPlayerSwipeGestureHandler(
         scope = scope,
         density = density,
         hapticFeedback = hapticFeedback,
         offsetAnimatable = offsetAnimatable,
         screenWidthPx = screenWidthPx,
-        onDismissPlaylistAndShowUndo = { playerViewModel.dismissPlaylistAndShowUndo() },
-        onDismissStarted = { playerViewModel.setMiniPlayerDismissing(true) }
+        onSwipeToNext = { playerViewModel.nextSong() },
+        onSwipeToPrevious = { playerViewModel.previousSong() }
     )
 
     QueueSheetRuntimeEffects(
@@ -726,9 +726,9 @@ fun UnifiedPlayerSheetV2(
                                     placeable.placeRelative(xOffset, 0)
                                 }
                             }
-                            .miniPlayerDismissHorizontalGesture(
+                            .miniPlayerSwipeHorizontalGesture(
                                 enabled = currentSheetContentState == PlayerSheetState.COLLAPSED,
-                                handler = miniDismissGestureHandler
+                                handler = miniPlayerSwipeGestureHandler
                             )
                             .playerSheetVerticalDragGesture(
                                 enabled = sheetInteractionState.canDragSheet,
