@@ -204,6 +204,7 @@ fun UnifiedPlayerSheetV2(
     val preparingSongId = playerUiSheetSlice.preparingSongId
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsStateWithLifecycle()
+    val dismissMiniPlayerOnSwipe by playerViewModel.dismissMiniPlayerOnSwipe.collectAsStateWithLifecycle()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsStateWithLifecycle()
     val predictiveBackSwipeEdge by playerViewModel.predictiveBackSwipeEdge.collectAsStateWithLifecycle()
     val prewarmFullPlayer = rememberPrewarmFullPlayer(infrequentPlayerState.currentSong?.id)
@@ -220,6 +221,7 @@ fun UnifiedPlayerSheetV2(
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
+    val miniPlayerSwipeOffset = remember { Animatable(0f) }
 
     val screenWidthPx = remember(configuration, density) {
         with(density) { configuration.screenWidthDp.dp.toPx() }
@@ -457,10 +459,16 @@ fun UnifiedPlayerSheetV2(
 
     val hapticFeedback = LocalHapticFeedback.current
     val miniPlayerSwipeGestureHandler = rememberMiniPlayerSwipeGestureHandler(
+        scope = scope,
         density = density,
         hapticFeedback = hapticFeedback,
+        offsetAnimatable = miniPlayerSwipeOffset,
+        screenWidthPx = screenWidthPx,
+        dismissEnabled = dismissMiniPlayerOnSwipe,
         onSwipeToNext = { playerViewModel.nextSong() },
-        onSwipeToPrevious = { playerViewModel.previousSong() }
+        onSwipeToPrevious = { playerViewModel.previousSong() },
+        onDismiss = { playerViewModel.dismissPlaylistAndShowUndo() },
+        onDismissStarted = { playerViewModel.setMiniPlayerDismissing(true) }
     )
 
     QueueSheetRuntimeEffects(
@@ -640,6 +648,7 @@ fun UnifiedPlayerSheetV2(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
+                                translationX = miniPlayerSwipeOffset.value
                                 scaleX = miniAppearScale
                                 scaleY = visualOvershootScaleY.value * miniAppearScale
                                 alpha = miniReadyAlpha
